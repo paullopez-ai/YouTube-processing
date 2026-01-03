@@ -10,16 +10,18 @@ A simple Next.js application that extracts transcripts from YouTube videos and c
 - ✅ **Clean UI** - Simple, responsive interface built with Tailwind CSS
 - ✅ **Word Count** - Shows word count for both raw and cleaned transcripts
 - ✅ **Collapsible Raw Transcript** - View original transcript for comparison
+- ✅ **Enhanced Error Handling** - Improved API key validation and user-friendly error messages
 
 ## Tech Stack
 
-- **Next.js 14.2** - React framework with App Router
+- **Next.js 16.1.1** - React framework with App Router
 - **TypeScript** - Type safety
 - **Tailwind CSS** - Styling
 - **Anthropic Claude AI** - Transcript cleaning
 - **youtube-transcript** - Native transcript extraction
 - **OpenAI Whisper** - Audio transcription fallback
 - **yt-dlp** - Audio download for Whisper processing
+- **ESLint 9** - Code linting with flat config
 
 ## Prerequisites
 
@@ -41,8 +43,10 @@ A simple Next.js application that extracts transcripts from YouTube videos and c
    ```
 
 3. **Set up environment variables:**
+   
+   Create a `.env.local` file in the project root:
    ```bash
-   cp .env.example .env.local
+   touch .env.local
    ```
 
 4. **Edit `.env.local` and add your API keys:**
@@ -171,9 +175,11 @@ When videos have native YouTube captions, extraction is free and instant.
 - Make sure you added `ANTHROPIC_API_KEY` to `.env.local`
 - Restart the development server after adding the key
 
-### "Failed to transcribe video"
+### "Failed to transcribe video" or "Invalid OpenAI API key"
 - Check that `yt-dlp` is installed: `which yt-dlp`
-- Verify your OpenAI API key is valid
+- Verify your OpenAI API key is valid and properly formatted (should start with `sk-`)
+- Ensure your API key is correctly set in `.env.local`
+- Get a new API key at https://platform.openai.com/account/api-keys if needed
 - Check the video is publicly accessible
 
 ### Build errors
@@ -199,9 +205,11 @@ youtube-transcript-demo/
 │       ├── layout.tsx             # Root layout
 │       └── globals.css            # Global styles
 ├── package.json
+├── package-lock.json
 ├── tsconfig.json
 ├── tailwind.config.ts
-├── .env.example
+├── eslint.config.mjs             # ESLint 9 flat config
+├── next.config.mjs
 └── README.md
 ```
 
