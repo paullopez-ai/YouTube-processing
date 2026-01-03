@@ -48,8 +48,24 @@ async function downloadAudio(videoUrl: string, outputPath: string): Promise<void
   await execAsync(command, { maxBuffer: 50 * 1024 * 1024 });
 }
 
+// Validate OpenAI API key format
+function validateOpenAIKey(apiKey: string | undefined): void {
+  if (!apiKey) {
+    throw new Error('OPENAI_API_KEY is not set in environment variables');
+  }
+  if (!apiKey.startsWith('sk-')) {
+    throw new Error('OPENAI_API_KEY appears to be invalid (should start with "sk-")');
+  }
+  if (apiKey.length < 20) {
+    throw new Error('OPENAI_API_KEY appears to be too short');
+  }
+}
+
 // Download audio from YouTube and transcribe with Whisper
 async function transcribeWithWhisper(videoUrl: string): Promise<{ transcript: string; title: string }> {
+  // Validate API key before creating client
+  validateOpenAIKey(process.env.OPENAI_API_KEY);
+
   const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
   });
@@ -136,7 +152,16 @@ export async function POST(request: Request) {
 
     if (!process.env.OPENAI_API_KEY) {
       return NextResponse.json({
-        error: 'No transcript available for this video, and OpenAI API key is not configured for Whisper fallback.',
+        error: 'No transcript available for this video, and OpenAI API key is not configured for Whisper fallback. Please add OPENAI_API_KEY to your .env.local file.',
+      }, { status: 500 });
+    }
+
+    // Validate API key format before proceeding
+    try {
+      validateOpenAIKey(process.env.OPENAI_API_KEY);
+    } catch (validationError) {
+      return NextResponse.json({
+        error: validationError instanceof Error ? validationError.message : 'Invalid OpenAI API key format. Please check your OPENAI_API_KEY in .env.local.',
       }, { status: 500 });
     }
 
@@ -170,17 +195,28 @@ export async function POST(request: Request) {
       console.error('❌ Whisper transcription failed:', whisperError);
 
       let errorMessage = 'Failed to transcribe video';
+      let statusCode = 500;
+
       if (whisperError instanceof Error) {
-        if (whisperError.message.includes('API key')) {
-          errorMessage = 'Invalid OpenAI API key for Whisper transcription';
-        } else if (whisperError.message.includes('rate limit')) {
+        // Check for OpenAI API errors
+        const errorObj = whisperError as any;
+        const errorMsg = whisperError.message;
+        
+        if (errorObj.status === 401 || errorObj.code === 'invalid_api_key' || errorMsg.includes('API key') || errorMsg.includes('Incorrect API key')) {
+          errorMessage = 'Invalid or incorrect OpenAI API key. Please check your OPENAI_API_KEY in .env.local and ensure it\'s valid. Get a new key at https://platform.openai.com/account/api-keys';
+          statusCode = 401;
+        } else if (errorObj.status === 429 || errorMsg.includes('rate limit')) {
           errorMessage = 'OpenAI rate limit reached. Please try again later.';
+          statusCode = 429;
+        } else if (errorMsg.includes('OPENAI_API_KEY is not set')) {
+          errorMessage = 'OpenAI API key is not configured. Please add OPENAI_API_KEY to your .env.local file.';
+          statusCode = 500;
         } else {
-          errorMessage = `Whisper transcription failed: ${whisperError.message}`;
+          errorMessage = `Whisper transcription failed: ${errorMsg}`;
         }
       }
 
-      return NextResponse.json({ error: errorMessage }, { status: 500 });
+      return NextResponse.json({ error: errorMessage }, { status: statusCode });
     }
   }
 }
